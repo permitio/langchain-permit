@@ -11,21 +11,61 @@ from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field, ConfigDict
 import jwt
 import asyncio
+import requests
+import json
 
+
+class LangchainJWTValidationToolInput(BaseModel):
+    jwt_token: str = Field(..., description="JWT token to validate")
+    jwks_url: str = Field(..., description="URL of the JWKS endpoint")
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        from_attributes=True
+    )
+
+class LangchainJWTValidationTool(BaseTool):
+    name: str = "jwt_validation"
+    description: str = "Validate a JWT token using public keys from a JWKS endpoint and return its claims"
+    args_schema: Type[BaseModel] = LangchainJWTValidationToolInput
+
+    def _run(self, jwt_token: str, jwks_url: str, *, run_manager: Optional[CallbackManagerForToolRun] = None) -> Dict[str, Any]:
+        return self.validate_jwt(jwt_token, jwks_url)
+
+    async def _arun(self, jwt_token: str, jwks_url: str, *, run_manager: Optional[CallbackManagerForToolRun] = None) -> Dict[str, Any]:
+        return self.validate_jwt(jwt_token, jwks_url)
+
+    def validate_jwt(self, jwt_token: str, jwks_url: str) -> Dict[str, Any]:
+        # Extract the unverified header to get the kid
+        unverified_header = jwt.get_unverified_header(jwt_token)
+        kid = unverified_header.get("kid")
+        if not kid:
+            raise ValueError("JWT token missing 'kid' header")
+
+        # Fetch the JWKS from the endpoint
+        jwks = requests.get(jwks_url).json()
+        public_key = None
+        for key in jwks.get("keys", []):
+            if key.get("kid") == kid:
+                # Convert the JWK to an RSA public key object that PyJWT can use
+                public_key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key))
+                break
+        if not public_key:
+            raise ValueError(f"Public key not found for kid: {kid}")
+
+        # Validate the token using the public key
+        try:
+            decoded = jwt.decode(jwt_token, public_key, algorithms=["RS256"])
+            return decoded
+        except Exception as e:
+            raise ValueError(f"JWT validation failed: {e}")
 
 
 class LangchainPermitToolInput(BaseModel):
-    """Input schema for permission checking.
-
-    The Field descriptions are sent to the model when performing tool calling.
-    """
-    user: Optional[str] = Field(
-        default=None, 
-        description="User ID (optional if JWT token is provided)"
-    )
-    jwt_token: Optional[str] = Field(
-        default=None, 
-        description="JWT token for authentication and user identification"
+    """Input schema for permission checking (authorization only)."""
+    user: str = Field(
+        ..., 
+        description="User ID to check permission for"
     )
     action: str = Field(
         ..., 
@@ -35,26 +75,22 @@ class LangchainPermitToolInput(BaseModel):
         ..., 
         description="The resource to check permission against (e.g., 'document', 'file')"
     )
-    jwt_secret_key: Optional[str] = Field(
-        default=None, 
-        description="Secret key for JWT validation"
-    )
     
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
         from_attributes=True
     )
 
+
 class LangchainPermitTool(BaseTool):
-    """Tool for checking permissions using Permit.io.
-    """
+    """Tool for checking permissions using Permit.io (authorization only)."""
     name: str = "permission_check"
-    description: str = "Validate JWT and check if a user has permission to perform an action on a resource"
+    description: str = "Check if a user has permission to perform an action on a resource using Permit"
     args_schema: Type[BaseModel] = LangchainPermitToolInput
     permit: Optional[Permit] = None
 
     def __init__(self, permit_client: Optional[Permit] = None):
-        """Initialize with optional Permit client."""
+        """Initialize with an optional Permit client."""
         super().__init__()
         load_dotenv()
         if permit_client is None:
@@ -67,70 +103,31 @@ class LangchainPermitTool(BaseTool):
         else:
             self.permit = permit_client
             
-    def _validate_jwt(self, jwt_token: str, secret_key: Optional[str] = None) -> Dict[str, Any]:
-        """Validate JWT token and return decoded payload."""
-        try:
-            # If secret key is not provided, try to get from environment
-            if not secret_key:
-                secret_key = os.getenv("JWT_SECRET_KEY")
-            
-            # Decode token
-            decoded_token = jwt.decode(
-                jwt_token, 
-                secret_key, 
-                algorithms=['HS256'],
-                options={'verify_signature': secret_key is not None}
-            )
-            return decoded_token
-        except jwt.PyJWTError as e:
-            raise ValueError(f"JWT validation failed: {str(e)}")
-    
-    
     def _run(
         self, 
-        user: Optional[str] = None,
-        jwt_token: Optional[str] = None,
-        action: str = None,
-        resource: str = None,
-        jwt_secret_key: Optional[str] = None,
+        user: str,
+        action: str,
+        resource: str,
         *, 
         run_manager: Optional[CallbackManagerForToolRun] = None
     ) -> bool:
-        """Run permission check with optional JWT validation."""
-        # Validate JWT if token is provided
-        if jwt_token:
-            decoded_token = self._validate_jwt(jwt_token, jwt_secret_key)
-            # Extract user from JWT if not explicitly provided
-            user = user or decoded_token.get('sub') or decoded_token.get('user_id')
-
-        # Ensure user is provided
+        """Run permission check using the Permit client."""
         if not user:
-            raise ValueError("User ID must be provided either through JWT or explicit input")
-
+            raise ValueError("User ID must be provided")
         # Use asyncio to run the async check method synchronously
         return asyncio.run(self.permit.check(user, action, resource))
 
     async def _arun(
         self, 
-        user: Optional[str] = None,
-        jwt_token: Optional[str] = None,
-        action: str = None,
-        resource: str = None,
-        jwt_secret_key: Optional[str] = None,
+        user: str,
+        action: str,
+        resource: str,
         *, 
         run_manager: Optional[CallbackManagerForToolRun] = None
     ) -> bool:
-        """Async run method."""
-        # Validate JWT if token is provided
-        if jwt_token:
-            decoded_token = self._validate_jwt(jwt_token, jwt_secret_key)
-            # Extract user from JWT if not explicitly provided
-            user = user or decoded_token.get('sub') or decoded_token.get('user_id')
-
-        # Ensure user is provided
+        """Asynchronous run method for permission check."""
         if not user:
-            raise ValueError("User ID must be provided either through JWT or explicit input")
-
+            raise ValueError("User ID must be provided")
         # Directly await the check method
         return await self.permit.check(user, action, resource)
     
