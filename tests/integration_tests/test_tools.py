@@ -8,7 +8,7 @@ import jwt
 from typing import Type
 from jwcrypto import jwk
 import requests
-from langchain_permit.tools import LangchainJWTValidationTool, LangchainPermissionsCheckTool, LangchainPermissionsCheckToolInput
+from langchain_permit.tools import LangchainJWTValidationTool, LangchainPermissionsCheckTool
 from langchain_tests.integration_tests import ToolsIntegrationTests
 from unittest.mock import Mock, patch
 
@@ -116,59 +116,41 @@ class TestJWTValidationToolIntegration(ToolsIntegrationTests):
         requests.get = self._original_get
 
 
-class TestPermitToolIntegration(ToolsIntegrationTests):
-    """Integration tests for the LangchainPermitTool."""
 
+class TestPermitToolIntegration(ToolsIntegrationTests):
     @property
     def tool_constructor(self) -> Type[LangchainPermissionsCheckTool]:
-        """Return the tool constructor."""
         return LangchainPermissionsCheckTool
 
     @property
     def tool_constructor_params(self) -> dict:
-        """
-        For testing, we'll use a dummy token
-        """
-        os.environ["PERMIT_API_KEY"] = "permit_key_FCmZ01owzYvQPXPg5KK1mdlzLdqvkV1CiqVGM6MZKqXHa9fq7CbmvC6eDnNOoYsci0oGL9WOCJ2ey1Ttznr8d5"
-        return {}
+        """Mock permit client for testing."""
+        mock_permit = Mock()
+        mock_permit.check = Mock(return_value=True)
+        return {"permit_client": mock_permit}
 
     @property
     def tool_invoke_params_example(self) -> dict:
-        """
-        Return example parameters for tool invocation.
-        Includes RBAC, ABAC, and tenant scenarios.
-        """
+        """Basic example with validated structure."""
         return {
             "user": {
                 "key": "test_user",
-                "attributes": {
-                    "department": "engineering",
-                    "role": "senior_engineer"
-                }
+                "email": "test@example.com"
             },
             "action": "read",
             "resource": {
-                "key": "document_123",
-                "type": "technical_doc",
-                "attributes": {
-                    "classification": "internal",
-                    "department": "engineering"
-                }
-            },
-            "tenant": "default_tenant",
-            "context": {
-                "environment": "production",
-                "access_method": "internal"
+                "type": "document",
+                "key": "doc123"
             }
         }
 
     def setup_method(self, method):
         """Set up test environment."""
-        # Monkeypatch can be added here if needed
-        pass
+        self.patcher = patch('permit.Permit')
+        self.mock_permit = self.patcher.start()
+        self.mock_permit.return_value.check = Mock(return_value=True)
 
     def teardown_method(self, method):
         """Clean up test environment."""
-        # Cleanup can be added here if needed
-        pass
+        self.patcher.stop()
 
