@@ -195,19 +195,19 @@ class LangchainPermissionsCheckTool(BaseTool):
         """
         # Validate user
         if isinstance(user, str):
-            validated_user = UserInput(key=user).dict(exclude_none=True)
+            validated_user = UserInput(key=user).model_dump(exclude_none=True)
         else:
             try:
-                validated_user = UserInput(**user).dict(exclude_none=True)
+                validated_user = UserInput(**user).model_dump(exclude_none=True)
             except Exception as e:
                 raise ValueError(f"Invalid user object structure: {str(e)}")
 
         # Validate resource
         if isinstance(resource, str):
-            validated_resource = ResourceInput(type=resource).dict(exclude_none=True)
+            validated_resource = ResourceInput(type=resource).model_dump(exclude_none=True)
         else:
             try:
-                validated_resource = ResourceInput(**resource).dict(exclude_none=True)
+                validated_resource = ResourceInput(**resource).model_dump(exclude_none=True)
             except Exception as e:
                 raise ValueError(f"Invalid resource object structure: {str(e)}")
 
