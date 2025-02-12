@@ -4,7 +4,7 @@
 
 from dotenv import load_dotenv
 import os
-from typing import Optional, Dict, Type, Any
+from typing import Optional, Dict, Type, Any, Union
 from permit import Permit, PermitError
 from langchain_core.callbacks import CallbackManagerForToolRun
 from langchain_core.tools import BaseTool
@@ -146,90 +146,151 @@ class LangchainJWTValidationTool(BaseTool):
 
 
 class LangchainPermissionsCheckToolInput(BaseModel):
-    """Input schema for permission checking (authorization only)."""
-    user: str = Field(
+    """
+    Comprehensive input model for Permit.io check method
+    Supporting RBAC, ABAC, and ReBAC scenarios
+    """
+    user: Union[str, Dict[str, Any]] = Field(
         ..., 
-        description="User ID to check permission for"
+        description="User identifier or full user object with key and attributes"
     )
     action: str = Field(
         ..., 
-        description="The action to check permission for (e.g., 'read', 'write')"
+        description="Action to be performed"
     )
-    resource: str = Field(
+    resource: Union[str, Dict[str, Any]] = Field(
         ..., 
-        description="The resource to check permission against (e.g., 'document', 'file')"
+        description="Resource identifier or full resource object with type and attributes"
     )
-    attributes: Optional[Dict[str, Any]] = Field(None, description="Optional attributes for ABAC checks")
-    context: Optional[Dict[str, Any]] = Field(None, description="Optional context for ReBAC or additional conditions")
+    tenant: Optional[str] = Field(
+        default=None, 
+        description="Tenant identifier for multi-tenant scenarios"
+    )
+    context: Optional[Dict[str, Any]] = Field(
+        default=None, 
+        description="Additional context for policy evaluation"
+    )
 
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
         from_attributes=True
     )
-
-
-
 class LangchainPermissionsCheckTool(BaseTool):
-    """Tool for checking permissions using Permit.io (authorization only)."""
-    name: str = "permission_check"
-    description: str = "Check if a user has permission to perform an action on a resource using Permit"
+    """
+    Comprehensive Permit.io authorization tool supporting 
+    RBAC, ABAC, and ReBAC scenarios
+    """
+    name: str = "permit_authorization"
+    description: str = "Comprehensive permission check using Permit.io"
     args_schema: Type[BaseModel] = LangchainPermissionsCheckToolInput
-    permit: Optional[Permit] = None
+    permit: Optional[Permit] = Field(default=None)
 
-    def __init__(self, permit_client: Optional[Permit] = None, pdp_url: Optional[str] = None):
-        """Initialize with an optional Permit client and optional PDP URL."""
+
+    def __init__(
+        self, 
+        permit_client: Optional[Permit] = None, 
+        pdp_url: Optional[str] = None
+    ):
+        """
+        Initialize Permit client with flexible configuration
+        """
         super().__init__()
-        load_dotenv()
-        if permit_client is None:
+        
+        # Use provided client or create new instance
+        if permit_client:
+            self.permit = permit_client
+        else:
+            # Fetch configuration from environment
             token = os.getenv("PERMIT_API_KEY")
+            if not token:
+                raise ValueError("PERMIT_API_KEY environment variable is required")
+                
+            pdp_url = pdp_url or os.getenv("PERMIT_PDP_URL", "https://cloudpdp.api.permit.io")
+            
             self.permit = Permit(
                 token=token,
-                pdp=pdp_url or "https://cloudpdp.api.permit.io",  # Use provided PDP URL or default to cloud URL
+                pdp=pdp_url,
                 api_timeout=5
             )
-        else:
-            self.permit = permit_client
+
+    def _prepare_check_params(
+        self, 
+        user: Union[str, Dict[str, Any]],
+        action: str,
+        resource: Union[str, Dict[str, Any]],
+        tenant: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Prepare parameters for Permit.io check method
+        Supports various input formats and complexities
+        """
+        # Normalize user input
+        if isinstance(user, str):
+            user = {"key": user}
+        
+        # Normalize resource input
+        if isinstance(resource, str):
+            resource = {"key": resource}
+        
+        if tenant:
+            resource["tenant"] = tenant 
+        
+        # Prepare check parameters
+        check_params = {
+            "user": user,
+            "action": action,
+            "resource": resource
+        }
+        
+        # # Add optional parameters
+        # if tenant:
+        #     check_params["tenant"] = tenant
+        
+        if context:
+            check_params["context"] = context
+        
+        return check_params
 
     def _run(
-        self,
-        user: str,
+        self, 
+        user: Union[str, Dict[str, Any]],
         action: str,
-        resource: str,
-        attributes: Optional[Dict[str, Any]] = None,
+        resource: Union[str, Dict[str, Any]],
+        tenant: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
-        *,
+        *, 
         run_manager: Optional[CallbackManagerForToolRun] = None
     ) -> bool:
-        """Run permission check using the Permit client."""
-        if not user:
-            raise ValueError("User ID must be provided")
-
-        # Combine attributes and context into the resource or user
-        user_with_attributes = {"user_id": user, **(attributes or {}), **(context or {})}
-        resource_with_attributes = {"resource_id": resource, **(attributes or {})}
-
-        # Use asyncio to run the async check method synchronously
-        return asyncio.run(self.permit.check(user_with_attributes, action, resource_with_attributes))
+        """
+        Synchronous permission check method
+        """
+        # Prepare check parameters
+        check_params = self._prepare_check_params(
+            user, action, resource, tenant, context
+        )
+        
+        # Run synchronously using asyncio
+        return asyncio.run(self.permit.check(**check_params))
 
     async def _arun(
-        self,
-        user: str,
+        self, 
+        user: Union[str, Dict[str, Any]],
         action: str,
-        resource: str,
-        attributes: Optional[Dict[str, Any]] = None,
+        resource: Union[str, Dict[str, Any]],
+        tenant: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
-        *,
+        *, 
         run_manager: Optional[CallbackManagerForToolRun] = None
     ) -> bool:
-        """Asynchronous run method for permission check."""
-        if not user:
-            raise ValueError("User ID must be provided")
-
-        # Combine attributes and context into the resource or user
-        user_with_attributes = {"user_id": user, **(attributes or {}), **(context or {})}
-        resource_with_attributes = {"resource_id": resource, **(attributes or {})}
-
-        # Directly await the check method with combined attributes and context
-        return await self.permit.check(user_with_attributes, action, resource_with_attributes)
-
+        """
+        Asynchronous permission check method
+        """
+        # Prepare check parameters
+        check_params = self._prepare_check_params(
+            user, action, resource, tenant, context
+        )
+        
+        # Directly await check method
+        return await self.permit.check(**check_params)
     
