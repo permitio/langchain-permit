@@ -1,7 +1,7 @@
 from importlib import metadata
 
 
-from langchain_permit.retrievers import LangchainPermitRetriever
+from langchain_permit.retrievers import PermitUserPermissionRetriever, PermitFilterObjectsRetriever
 from langchain_permit.tools import LangchainPermissionsCheckTool
 from langchain_permit.tools import LangchainJWTValidationTool
 
@@ -14,7 +14,8 @@ except metadata.PackageNotFoundError:
 del metadata  # optional, avoids polluting the results of dir(__package__)
 
 __all__ = [
-    "LangchainPermitRetriever",
+    "PermitUserPermissionRetriever",
+    "PermitFilterObjectsRetriever",
     "LangchainPermissionsCheckTool",
     "LangchainJWTValidationTool",
     "__version__",
