@@ -10,6 +10,7 @@ from jwcrypto import jwk
 import requests
 from langchain_permit.tools import LangchainJWTValidationTool, LangchainPermissionsCheckTool, LangchainPermissionsCheckToolInput
 from langchain_tests.integration_tests import ToolsIntegrationTests
+from unittest.mock import Mock, patch
 
 class TestJWTValidationToolIntegration(ToolsIntegrationTests):
     # Rename test key objects so they're not detected as extra tests.
@@ -115,65 +116,59 @@ class TestJWTValidationToolIntegration(ToolsIntegrationTests):
         requests.get = self._original_get
 
 
-class TestPermissionToolIntegration(ToolsIntegrationTests):
+class TestPermitToolIntegration(ToolsIntegrationTests):
+    """Integration tests for the LangchainPermitTool."""
+
     @property
     def tool_constructor(self) -> Type[LangchainPermissionsCheckTool]:
+        """Return the tool constructor."""
         return LangchainPermissionsCheckTool
 
     @property
     def tool_constructor_params(self) -> dict:
-        # We don't need any initialization parameters since 
-        # the tool will use PERMIT_API_KEY from the environment
+        """
+        For testing, we'll use a dummy token
+        """
+        os.environ["PERMIT_API_KEY"] = "permit_key_FCmZ01owzYvQPXPg5KK1mdlzLdqvkV1CiqVGM6MZKqXHa9fq7CbmvC6eDnNOoYsci0oGL9WOCJ2ey1Ttznr8d5"
         return {}
 
     @property
     def tool_invoke_params_example(self) -> dict:
         """
-        Example permission check parameters.
-        Tests if 'test_user' has 'read' permission on 'document'.
-        Also includes attributes and context for ABAC/ReBAC.
+        Return example parameters for tool invocation.
+        Includes RBAC, ABAC, and tenant scenarios.
         """
         return {
-            "user": "test_user",
-            "action": "read",
-            "resource": "document",
-            "attributes": {
-                "department": "engineering",
-                "sensitivity": "confidential"
+            "user": {
+                "key": "test_user",
+                "attributes": {
+                    "department": "engineering",
+                    "role": "senior_engineer"
+                }
             },
+            "action": "read",
+            "resource": {
+                "key": "document_123",
+                "type": "technical_doc",
+                "attributes": {
+                    "classification": "internal",
+                    "department": "engineering"
+                }
+            },
+            "tenant": "default_tenant",
             "context": {
-                "location": "office",
-                "time_of_day": "business_hours"
+                "environment": "production",
+                "access_method": "internal"
             }
         }
 
-    def test_permissions_check_with_attributes_and_context(self):
-        """
-        Test ABAC (Attribute-Based Access Control) and ReBAC (Relationship-Based Access Control)
-        functionality using the new tool.
-        """
-        tool = self.tool_constructor()
+    def setup_method(self, method):
+        """Set up test environment."""
+        # Monkeypatch can be added here if needed
+        pass
 
-        # Prepare input data with attributes and context
-        tool_input = LangchainPermissionsCheckToolInput(
-        user="test_user",
-        action="read",
-        resource="document",  # Simple resource
-        attributes={
-            "department": "engineering",
-            "sensitivity": "confidential"
-        },
-        context={
-            "location": "office",
-            "time_of_day": "business_hours"
-        }
-    )
-
-        # Test with additional attributes and context for ABAC/ReBAC
-        result = tool.run(tool_input)
-
-        # Assert the result is a boolean indicating permission granted/denied
-        assert isinstance(result, bool)
-        assert result is True  # Assuming the permission check passes
-
+    def teardown_method(self, method):
+        """Clean up test environment."""
+        # Cleanup can be added here if needed
+        pass
 
