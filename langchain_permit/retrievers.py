@@ -8,6 +8,7 @@ from langchain_core.retrievers import BaseRetriever
 from langchain.retrievers import SelfQueryRetriever, EnsembleRetriever
 from langchain.chains.query_constructor.base import AttributeInfo
 from permit import Permit, User, Action, Context
+import asyncio
 
 class PermitSelfQueryRetriever(SelfQueryRetriever, BaseModel):
     """Retriever that uses natural language to query permitted documents."""
@@ -132,6 +133,24 @@ class PermitSelfQueryRetriever(SelfQueryRetriever, BaseModel):
         except Exception as e:
             run_manager.on_retriever_error(f"{e.__class__.__name__}: {str(e)}")
             raise
+        
+    def get_relevant_documents(
+        self,
+        query: str,
+         *,
+        run_manager: Optional[CallbackManagerForRetrieverRun] = None,
+        **kwargs: Any
+    ) -> List[Document]:
+        """Synchronous entry point that wraps the async retrieval."""
+        import asyncio
+        try:
+            # Attempt to use asyncio.run() if no event loop is running.
+            return asyncio.run(self._aget_relevant_documents(query, **kwargs))
+        except RuntimeError:
+            # If there's an active event loop, fall back to get_event_loop().
+            loop = asyncio.get_event_loop()
+            return loop.run_until_complete(self._aget_relevant_documents(query, **kwargs))
+
 
 class PermitEnsembleRetriever(EnsembleRetriever, BaseModel):
     """Ensemble retriever with Permit.io permission filtering."""
@@ -266,9 +285,16 @@ class PermitEnsembleRetriever(EnsembleRetriever, BaseModel):
     def get_relevant_documents(
         self,
         query: str,
+        *,
+        run_manager: Optional[CallbackManagerForRetrieverRun] = None,
         **kwargs: Any
     ) -> List[Document]:
-        """Not implemented - use async version."""
-        raise NotImplementedError(
-            "This retriever only supports async operations. Please use aget_relevant_documents."
-        )
+        """Synchronous entry point that wraps the async retrieval."""
+        import asyncio
+        try:
+            # Attempt to use asyncio.run() if no event loop is running.
+            return asyncio.run(self._aget_relevant_documents(query, **kwargs))
+        except RuntimeError:
+            # If there's an active event loop, fall back to get_event_loop().
+            loop = asyncio.get_event_loop()
+            return loop.run_until_complete(self._aget_relevant_documents(query, **kwargs))

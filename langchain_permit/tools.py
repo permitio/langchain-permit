@@ -16,8 +16,8 @@ import json
 from dataclasses import dataclass
 
 
-class JWKSConfig(BaseModel):
-    """Configuration for JWKS source."""
+class JWKsConfig(BaseModel):
+    """Configuration for JWKs source."""
     url: Optional[str] = None
     json_keys: Optional[Dict] = None
 
@@ -38,13 +38,13 @@ class LangchainJWTValidationToolInput(BaseModel):
 
 class LangchainJWTValidationTool(BaseTool):
     """
-    A tool that validates JWTs against JWKS provided either via URL or direct JSON.
+    A tool that validates JWTs against JWKs provided either via URL or direct JSON.
     """
     name: str = "jwt_validation"
-    description: str = "Validate a JWT token using either a JWKS endpoint or direct JWKS"
+    description: str = "Validate a JWT token using either a JWKs endpoint or direct JWKs"
     args_schema: Type[BaseModel] = LangchainJWTValidationToolInput
 
-    jwks_config: JWKSConfig
+    jwks_config: JWKsConfig
 
     def __init__(
         self, 
@@ -53,14 +53,14 @@ class LangchainJWTValidationTool(BaseTool):
         **kwargs
     ):
         """
-        Initialize with either JWKS URL or direct JSON keys.
+        Initialize with either JWKs URL or direct JSON keys.
         """
         # If neither is provided, try environment variable
         if not jwks_url and not jwks_json:
             jwks_url = os.getenv("JWKS_URL")
 
-        # Create JWKS configuration with relaxed validation
-        jwks_config = JWKSConfig(url=jwks_url, json_keys=jwks_json)
+        # Create JWKs configuration with relaxed validation
+        jwks_config = JWKsConfig(url=jwks_url, json_keys=jwks_json)
         
         # Prepare kwargs for BaseTool initialization
         kwargs['jwks_config'] = jwks_config
@@ -87,8 +87,8 @@ class LangchainJWTValidationTool(BaseTool):
 
     def _fetch_jwks(self) -> Dict:
         """
-        Get JWKS either from URL or stored JSON.
-        Handles test scenarios with no JWKS source.
+        Get JWKs either from URL or stored JSON.
+        Handles test scenarios with no JWKs source.
         """
         if self.jwks_config.url:
             try:
@@ -96,12 +96,12 @@ class LangchainJWTValidationTool(BaseTool):
                 response.raise_for_status()
                 return response.json()
             except requests.RequestException as e:
-                raise ValueError(f"Failed to fetch JWKS from URL: {e}")
+                raise ValueError(f"Failed to fetch JWKs from URL: {e}")
         
         if self.jwks_config.json_keys:
             return self.jwks_config.json_keys
         
-        # Fallback for testing: return a dummy JWKS
+        # Fallback for testing: return a dummy JWKs
         return {
             "keys": [{
                 "kty": "RSA",
@@ -113,7 +113,7 @@ class LangchainJWTValidationTool(BaseTool):
 
     def validate_jwt(self, jwt_token: str) -> Dict[str, Any]:
         """
-        Validate JWT using configured JWKS source.
+        Validate JWT using configured JWKs source.
         Handles test scenarios with minimal configuration.
         """
         # For testing, allow minimal validation
@@ -122,7 +122,7 @@ class LangchainJWTValidationTool(BaseTool):
             unverified_header = jwt.get_unverified_header(jwt_token)
             kid = unverified_header.get("kid")
 
-            # Fetch JWKS
+            # Fetch JWKs
             jwks = self._fetch_jwks()
 
             # Find matching key

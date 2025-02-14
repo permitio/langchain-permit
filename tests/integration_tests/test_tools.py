@@ -24,7 +24,7 @@ class TestJWTValidationToolIntegration(ToolsIntegrationTests):
 
     @property
     def tool_constructor_params(self) -> dict:
-        # Provide the JWKS URL in the constructor parameters
+        # Provide the JWKs URL in the constructor parameters
         return {"jwks_url": "http://localhost:8000/test-jwks"}
 
     @property
@@ -49,19 +49,19 @@ class TestJWTValidationToolIntegration(ToolsIntegrationTests):
 
     def run_test(self, monkeypatch):
         """
-        Override run_test to include JWKS JSON input test
+        Override run_test to include JWKs JSON input test
         """
         # Run the standard integration tests first
         super().run_test(monkeypatch)
         
-        # Add JWKS JSON input test
+        # Add JWKs JSON input test
         self._test_jwks_json_input()
 
     def _test_jwks_json_input(self):
         """
-        Test JWT validation with direct JWKS JSON input.
+        Test JWT validation with direct JWKs JSON input.
         """
-        # Convert test key to JWKS JSON
+        # Convert test key to JWKs JSON
         jwks_json = {"keys": [json.loads(self._test_key_obj.export_public())]}
         
         # Export the private key as PEM for signing
@@ -77,7 +77,7 @@ class TestJWTValidationToolIntegration(ToolsIntegrationTests):
         }
         token = jwt.encode(claims, private_pem, algorithm="RS256", headers={"kid": self._test_kid})
         
-        # Create tool with JWKS JSON
+        # Create tool with JWKs JSON
         tool = LangchainJWTValidationTool(jwks_json=jwks_json)
         
         # Validate token
@@ -89,7 +89,7 @@ class TestJWTValidationToolIntegration(ToolsIntegrationTests):
 
     def setup_method(self, method):
         """
-        Monkeypatch requests.get so that any call to the JWKS URL returns our test JWKS.
+        Monkeypatch requests.get so that any call to the JWKs URL returns our test JWKs.
         """
         import requests
         self._original_get = requests.get
@@ -98,7 +98,7 @@ class TestJWTValidationToolIntegration(ToolsIntegrationTests):
             if url == "http://localhost:8000/test-jwks":
                 class FakeResponse:
                     def json(inner_self):
-                        # Return the public key as JWKS.
+                        # Return the public key as JWKs.
                         return {"keys": [json.loads(self._test_key_obj.export_public())]}
                     
                     def raise_for_status(inner_self):
