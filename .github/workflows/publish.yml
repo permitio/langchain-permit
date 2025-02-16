@@ -4,6 +4,10 @@ on:
   release:
     types: [created]
 
+permissions:
+  id-token: write  # REQUIRED for trusted publishing
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
