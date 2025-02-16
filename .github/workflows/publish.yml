@@ -12,12 +12,19 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: pypi
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v3
         with:
           python-version: "3.13"
+      - name: Request OIDC Token
+        run: |
+          curl -X POST \
+          -H "Authorization: Bearer $(curl -X POST -H \"Authorization: token ${{ secrets.GITHUB_TOKEN }}\" \
+          https://api.github.com/app/installations/YOUR_INSTALLATION_ID/access_tokens | jq -r .token)" \
+          https://pypi.org/_/oidc/token
       - name: Install Poetry
         run: |
           curl -sSL https://install.python-poetry.org | python3 -
@@ -28,7 +35,4 @@ jobs:
         run: poetry build
 
       - name: Publish to PyPI
-        env:
-          POETRY_HTTP_BASIC_PYPI_USERNAME: __token__
-          POETRY_HTTP_BASIC_PYPI_PASSWORD: ""
         run: poetry publish
