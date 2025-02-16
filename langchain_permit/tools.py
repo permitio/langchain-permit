@@ -1,7 +1,6 @@
 # =============> LANGCHAIN IMPLEMENTATION <=============
 
 """LangchainPermit tools."""
-
 from dotenv import load_dotenv
 import os
 from typing import Optional, Dict, Type, Any, Union
@@ -174,6 +173,18 @@ class ResourceInput(BaseModel):
     
 class LangchainPermissionsCheckTool(BaseTool):
     """Tool for checking permissions using Permit.io."""
+    
+   # 1. Declare permit as a field
+    permit: Optional[Permit] = Field(default=None)
+
+    # 2. Let pydantic know we allow arbitrary types
+    class Config:
+        arbitrary_types_allowed = True
+
+    def __init__(self, name: str = "permission_check", permit=None, **kwargs):
+        super().__init__(name=name, **kwargs)
+        # 3. Assign it in the constructor
+        self.permit = permit
     
     def _validate_inputs(
         self,

@@ -1,18 +1,179 @@
 """Permit.io integration retrievers for Langchain."""
 import os
 from typing import Any, List, Optional, Dict, Callable
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, PrivateAttr
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from langchain.retrievers import SelfQueryRetriever, EnsembleRetriever
-from langchain.chains.query_constructor.base import AttributeInfo
+# from langchain.chains.query_constructor.base import AttributeInfo
 from permit import Permit, User, Action, Context
 import asyncio
+from langchain_core.language_models import BaseLanguageModel
+from langchain_core.vectorstores import VectorStore
+from langchain.chains.query_constructor.base import StructuredQueryOutputParser, get_query_constructor_prompt
+from langchain.chains.query_constructor.schema import AttributeInfo
+
+# class PermitSelfQueryRetriever(SelfQueryRetriever, BaseModel):
+#     """Retriever that uses natural language to query permitted documents."""
+
+#     api_key: str = Field(
+#         default_factory=lambda: os.getenv('PERMIT_API_KEY', ''),
+#         description="Permit.io API key"
+#     )
+#     pdp_url: Optional[str] = Field(
+#         default_factory=lambda: os.getenv('PERMIT_PDP_URL'),
+#         description="Optional PDP URL"
+#     )
+#     user: User = Field(..., description="User to check permissions for")
+#     resource_type: str = Field(..., description="Type of resource to query")
+#     action: str = Field(..., description="Action being performed")
+#     llm: Any = Field(..., description="Language model for query construction")
+#     vectorstore: Any = Field(..., description="Vector store for document retrieval")
+
+#     _permit_client: Optional[Permit] = None
+#     _allowed_ids: List[str] = []
+
+#     class Config:
+#         arbitrary_types_allowed = True
+
+#     def __init__(self, **data):
+#         from langchain.chains.llm import LLMChain
+#         from langchain.prompts import PromptTemplate
+
+#         prompt = PromptTemplate(
+#         template="Given a question, convert it to semantic search query.\nQuestion: {question}\nSemantic Search Query:",
+#         input_variables=["question"]
+#         )
+    
+    
+#         llm_chain = LLMChain(llm=data["llm"], prompt=prompt)
+#         data["llm_chain"] = llm_chain
+        
+    
+#         super(SelfQueryRetriever, self).__init__(
+#         llm=data["llm"],
+#         vectorstore=data["vectorstore"],
+#         document_content_description=f"Document of type {data['resource_type']}",
+#         metadata_field_info=[],
+#         structured_query_translator=None
+#         )
+        
+#         # Initialize Permit client
+#         self._permit_client = Permit(
+#             token=self.api_key,
+#             pdp=self.pdp_url
+#         )
+        
+#         # Get allowed IDs at initialization
+#         self._allowed_ids = self._get_permitted_ids()
+        
+        
+#         # Define metadata fields with ID constraint
+#         metadata_field_info = [
+#             AttributeInfo(
+#                 name="id",
+#                 description="The document identifier that must be in the allowed list",
+#                 type="string",
+#                 enum=self._allowed_ids  # This constrains searches to allowed IDs
+#             ),
+#             AttributeInfo(
+#                 name="resource_type",
+#                 description="The type of resource",
+#                 type="string"
+#             )
+#         ]
+#         # Update the metadata and translator
+#         self.metadata_field_info = metadata_field_info
+#         self.structured_query_translator = self._create_translator()        
+
+#     def _get_permitted_ids(self) -> List[str]:
+#         """Get list of permitted document IDs."""
+#         permissions = self._permit_client.get_user_permissions(
+#             user=self.user,
+#             resource_types=[self.resource_type]
+#         )
+        
+#         allowed_ids = []
+#         for resource in permissions.get("default", {}).get(self.resource_type, []):
+#             if self.action in resource.get("actions", []):
+#                 allowed_ids.append(resource["id"])
+        
+#         return allowed_ids
+
+#     def _create_translator(self):
+#         """Create query translator that always includes ID filter."""
+#         base_translator = self.vectorstore.as_query_transformer()
+        
+#         def wrapped_translator(structured_query):
+#             # Add ID constraint to every query
+#             if not structured_query.filter:
+#                 structured_query.filter = {"id": {"$in": self._allowed_ids}}
+#             else:
+#                 structured_query.filter = {
+#                     "$and": [
+#                         structured_query.filter,
+#                         {"id": {"$in": self._allowed_ids}}
+#                     ]
+#                 }
+#             return base_translator.visit_structured_query(structured_query)
+            
+#         return wrapped_translator
+
+#     async def _aget_relevant_documents(
+#         self,
+#         query: str,
+#         *,
+#         run_manager: CallbackManagerForRetrieverRun,
+#         **kwargs: Any
+#     ) -> List[Document]:
+#         """Get relevant documents with permissions built into the query."""
+#         run_manager.on_retriever_start(
+#             query,
+#             {
+#                 "user_id": self.user.key,
+#                 "resource_type": self.resource_type,
+#                 "action": self.action,
+#                 "allowed_ids_count": len(self._allowed_ids)
+#             }
+#         )
+
+#         try:
+#             # Query is already constrained to allowed IDs via translator
+#             docs = await super()._aget_relevant_documents(
+#                 query,
+#                 run_manager=run_manager,
+#                 **kwargs
+#             )
+            
+#             run_manager.on_retriever_end(docs)
+#             return docs
+            
+#         except Exception as e:
+#             run_manager.on_retriever_error(f"{e.__class__.__name__}: {str(e)}")
+#             raise
+        
+#     def get_relevant_documents(
+#         self,
+#         query: str,
+#          *,
+#         run_manager: Optional[CallbackManagerForRetrieverRun] = None,
+#         **kwargs: Any
+#     ) -> List[Document]:
+#         """Synchronous entry point that wraps the async retrieval."""
+#         import asyncio
+#         try:
+#             # Attempt to use asyncio.run() if no event loop is running.
+#             return asyncio.run(self._aget_relevant_documents(query, **kwargs))
+#         except RuntimeError:
+#             # If there's an active event loop, fall back to get_event_loop().
+#             loop = asyncio.get_event_loop()
+#             return loop.run_until_complete(self._aget_relevant_documents(query, **kwargs))
 
 class PermitSelfQueryRetriever(SelfQueryRetriever, BaseModel):
-    """Retriever that uses natural language to query permitted documents."""
-
+    """Retriever that uses natural language to query permitted documents with Permit.io authorization."""
+    
+    # Configuration fields
     api_key: str = Field(
         default_factory=lambda: os.getenv('PERMIT_API_KEY', ''),
         description="Permit.io API key"
@@ -21,36 +182,42 @@ class PermitSelfQueryRetriever(SelfQueryRetriever, BaseModel):
         default_factory=lambda: os.getenv('PERMIT_PDP_URL'),
         description="Optional PDP URL"
     )
-    user: User = Field(..., description="User to check permissions for")
+    # user: User = Field(..., description="User to check permissions for")
+    user: Dict[str, Any] = Field(..., description="User to check permissions for")
     resource_type: str = Field(..., description="Type of resource to query")
     action: str = Field(..., description="Action being performed")
-    llm: Any = Field(..., description="Language model for query construction")
-    vectorstore: Any = Field(..., description="Vector store for document retrieval")
+    llm: BaseLanguageModel = Field(..., description="Language model for query construction")
+    vectorstore: VectorStore = Field(..., description="Vector store for document retrieval")
+    enable_limit: bool = Field(default=False, description="Whether to enable limit in queries")
 
-    _permit_client: Optional[Permit] = None
-    _allowed_ids: List[str] = []
+    # Private fields
+    _permit_client: Optional[Permit] = PrivateAttr(default=None)
+    _allowed_ids: List[str] = PrivateAttr(default_factory=list)
 
     class Config:
         arbitrary_types_allowed = True
 
     def __init__(self, **data):
+        """Initialize the retriever with Permit.io integration."""
+        # Initialize base model
         super().__init__(**data)
+        
         # Initialize Permit client
         self._permit_client = Permit(
             token=self.api_key,
             pdp=self.pdp_url
         )
         
-        # Get allowed IDs at initialization
+        # Get initial allowed IDs
         self._allowed_ids = self._get_permitted_ids()
         
-        # Define metadata fields with ID constraint
+        # Create metadata field info
         metadata_field_info = [
             AttributeInfo(
                 name="id",
                 description="The document identifier that must be in the allowed list",
                 type="string",
-                enum=self._allowed_ids  # This constrains searches to allowed IDs
+                enum=self._allowed_ids
             ),
             AttributeInfo(
                 name="resource_type",
@@ -59,17 +226,27 @@ class PermitSelfQueryRetriever(SelfQueryRetriever, BaseModel):
             )
         ]
         
-        # Initialize the base SelfQueryRetriever
+        # Create query constructor chain
+        prompt = get_query_constructor_prompt(
+            document_content_description=f"Document of type {self.resource_type}",
+            metadata_field_info=metadata_field_info,
+        )
+        output_parser = StructuredQueryOutputParser.from_components()
+        query_constructor = prompt | self.llm | output_parser
+
+        # Initialize the SelfQueryRetriever
         super(SelfQueryRetriever, self).__init__(
             llm=self.llm,
             vectorstore=self.vectorstore,
             document_content_description=f"Document of type {self.resource_type}",
             metadata_field_info=metadata_field_info,
-            structured_query_translator=self._create_translator()
+            structured_query_translator=self._create_translator(),
+            query_constructor=query_constructor,
+            enable_limit=self.enable_limit
         )
 
     def _get_permitted_ids(self) -> List[str]:
-        """Get list of permitted document IDs."""
+        """Get list of permitted document IDs from Permit.io."""
         permissions = self._permit_client.get_user_permissions(
             user=self.user,
             resource_types=[self.resource_type]
@@ -109,6 +286,7 @@ class PermitSelfQueryRetriever(SelfQueryRetriever, BaseModel):
         **kwargs: Any
     ) -> List[Document]:
         """Get relevant documents with permissions built into the query."""
+        # Log retrieval start
         run_manager.on_retriever_start(
             query,
             {
@@ -120,7 +298,10 @@ class PermitSelfQueryRetriever(SelfQueryRetriever, BaseModel):
         )
 
         try:
-            # Query is already constrained to allowed IDs via translator
+            # Refresh permissions before querying
+            self._allowed_ids = self._get_permitted_ids()
+            
+            # Get documents using parent method
             docs = await super()._aget_relevant_documents(
                 query,
                 run_manager=run_manager,
@@ -133,24 +314,29 @@ class PermitSelfQueryRetriever(SelfQueryRetriever, BaseModel):
         except Exception as e:
             run_manager.on_retriever_error(f"{e.__class__.__name__}: {str(e)}")
             raise
-        
+
     def get_relevant_documents(
         self,
         query: str,
-         *,
+        *,
         run_manager: Optional[CallbackManagerForRetrieverRun] = None,
         **kwargs: Any
     ) -> List[Document]:
         """Synchronous entry point that wraps the async retrieval."""
-        import asyncio
         try:
-            # Attempt to use asyncio.run() if no event loop is running.
-            return asyncio.run(self._aget_relevant_documents(query, **kwargs))
+            return asyncio.run(self._aget_relevant_documents(
+                query,
+                run_manager=run_manager or CallbackManagerForRetrieverRun.get_noop_manager(),
+                **kwargs
+            ))
         except RuntimeError:
-            # If there's an active event loop, fall back to get_event_loop().
+            # If there's an active event loop, fall back to get_event_loop()
             loop = asyncio.get_event_loop()
-            return loop.run_until_complete(self._aget_relevant_documents(query, **kwargs))
-
+            return loop.run_until_complete(self._aget_relevant_documents(
+                query,
+                run_manager=run_manager or CallbackManagerForRetrieverRun.get_noop_manager(),
+                **kwargs
+            ))
 
 class PermitEnsembleRetriever(EnsembleRetriever, BaseModel):
     """Ensemble retriever with Permit.io permission filtering."""
@@ -164,9 +350,13 @@ class PermitEnsembleRetriever(EnsembleRetriever, BaseModel):
         default_factory=lambda: os.getenv('PERMIT_PDP_URL'),
         description="Optional PDP URL"
     )
-    user: User = Field(..., description="User to check permissions for")
-    action: Action = Field(..., description="Action being performed")
-    resource_type: str = Field(..., description="Type of resource being accessed")
+    # user: str = Field(..., description="User to check permissions for")
+    # action: str = Field(..., description="Action being performed")
+    # resource_type: str = Field(..., description="Type of resource being accessed")
+    user: str
+    action: str
+    resource_type: str
+
     retrievers: List[BaseRetriever] = Field(..., description="List of retrievers to ensemble")
     weights: Optional[List[float]] = Field(default=None, description="Optional weights for retrievers")
 
@@ -181,19 +371,35 @@ class PermitEnsembleRetriever(EnsembleRetriever, BaseModel):
             raise ValueError("PERMIT_API_KEY must be provided either through environment variable or directly")
         return v
 
+    # def __init__(self, **data):
+    #     super().__init__(**data)
+    #     # Initialize Permit client
+    #     self._permit_client = Permit(
+    #         token=self.api_key,
+    #         pdp=self.pdp_url
+    #     )
+    #     # Initialize base EnsembleRetriever
+    #     super(EnsembleRetriever, self).__init__(
+    #         retrievers=self.retrievers,
+    #         weights=self.weights
+    #     )
+
     def __init__(self, **data):
-        super().__init__(**data)
+        # Initialize EnsembleRetriever first with retrievers and weights
+        EnsembleRetriever.__init__(
+            self,
+            retrievers=data.get('retrievers', []),
+            weights=data.get('weights')
+        )
+        
+        # Initialize BaseModel with all data
+        BaseModel.__init__(self, **data)
+        
         # Initialize Permit client
         self._permit_client = Permit(
             token=self.api_key,
             pdp=self.pdp_url
         )
-        # Initialize base EnsembleRetriever
-        super(EnsembleRetriever, self).__init__(
-            retrievers=self.retrievers,
-            weights=self.weights
-        )
-
     async def _filter_by_permissions(
         self,
         documents: List[Document]
