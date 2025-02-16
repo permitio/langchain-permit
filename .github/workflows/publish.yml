@@ -17,13 +17,13 @@ jobs:
         run: |
           curl -sSL https://install.python-poetry.org | python3 -
       - name: Configure Poetry
-         run: poetry config pypi-token.pypi ""
+        run: poetry config pypi-token.pypi ""
 
       - name: Build package
-         run: poetry build
+        run: poetry build
 
       - name: Publish to PyPI
-         env:
-            POETRY_HTTP_BASIC_PYPI_USERNAME: __token__
-            POETRY_HTTP_BASIC_PYPI_PASSWORD: ""
-         run: poetry publish
+        env:
+          POETRY_HTTP_BASIC_PYPI_USERNAME: __token__
+          POETRY_HTTP_BASIC_PYPI_PASSWORD: ""
+        run: poetry publish
