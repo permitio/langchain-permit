@@ -1,17 +1,13 @@
 # LangChain Permit Integration
 
-Fine-grained authorization for LangChain using Permit.io: Seamlessly control document access, API interactions, and AI responses with robust, role-based permission management across your AI applications.
-
-## Overview
-
-This package provides a comprehensive authorization layer for LangChain applications, leveraging Permit.io's advanced permission management system. It enables developers to implement granular access controls across different stages of AI-powered workflows.
+Access Control components for LangChain using Permit.io: authenticate users and agents, filter prompts, protect RAG access, secure API interactions, and enforce AI responses with robust, fine-grained permission management across your AI applications.
 
 ## Key Features
 
 - 🔒 JWT Token Validation
-- 🛡️ Role-Based Access Control
-- 📄 Document Retrieval Filtering
-- 🤖 AI Action Authorization
+- 🛡️ Fine-grained authorization checks
+- 📄 RAG search filtering
+- 🤖 Permissions-aware RAG retrieval
 
 ## Installation
 
@@ -21,33 +17,34 @@ pip install langchain-permit
 
 ## Configuration
 
-Set up your Permit.io credentials:
+Set up your access control credentials:
 
 ```bash
 export PERMIT_API_KEY='your-permit-api-key'
-export JWT_SECRET_KEY='your-jwt-secret-key'  # Optional
+export PERMIT_PDP_URL='a cloud or local address of your policy decision point'
+export JWKS_URL='a .well-known URL with your JSON Web Keys'  # Optional
 ```
 
-## Authorization Perimeters
+## AI Access Control Four-Perimeters Framework
 
-The integration covers four critical authorization domains:
+The integration covers the four critical perimeters for access control in AI applications:
 
-1. **Prompt Protection**
+1. **Prompt Filtering**
 
    - Validate user permissions before processing AI prompts
    - Prevent unauthorized query generation
 
-2. **RAG Data Filter**
+2. **RAG Data Protection**
 
    - Filter document retrieval based on user roles
    - Ensure users access only permitted documents
 
-3. **AI Action Authorization**
+3. **Secure External Access**
 
    - Control API endpoint access
    - Implement approval workflows for sensitive actions
 
-4. **Response Protection**
+4. **Response Enforcement**
    - Filter and sanitize AI-generated responses
    - Prevent information leakage
 
