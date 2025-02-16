@@ -3,6 +3,7 @@ name: Publish to PyPI
 on:
   release:
     types: [created]
+  workflow_dispatch:
 
 permissions:
   id-token: write  # REQUIRED for trusted publishing
