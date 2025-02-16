@@ -16,8 +16,14 @@ jobs:
       - name: Install Poetry
         run: |
           curl -sSL https://install.python-poetry.org | python3 -
-      - name: Build and publish
-        run: |
-          poetry config pypi-token.pypi ${{ secrets.PYPI_TOKEN }}
-          poetry build
-          poetry publish
+      - name: Configure Poetry
+         run: poetry config pypi-token.pypi ""
+
+      - name: Build package
+         run: poetry build
+
+      - name: Publish to PyPI
+         env:
+            POETRY_HTTP_BASIC_PYPI_USERNAME: __token__
+            POETRY_HTTP_BASIC_PYPI_PASSWORD: ""
+         run: poetry publish
