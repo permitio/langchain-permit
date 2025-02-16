@@ -8,30 +8,32 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: pypi
+    environment:
+      name: pypi
+      url: https://pypi.org/project/langchain-permit
     permissions:
       id-token: write  # REQUIRED for trusted publishing
-      contents: read
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+      - uses: actions/checkout@v4
+
       - name: Set up Python
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - name: Request OIDC Token
-        run: |
-          curl -X POST \
-          -H "Authorization: Bearer $(curl -X POST -H \"Authorization: token ${{ secrets.GITHUB_TOKEN }}\" \
-          https://api.github.com/app/installations/YOUR_INSTALLATION_ID/access_tokens | jq -r .token)" \
-          https://pypi.org/_/oidc/token
+
       - name: Install Poetry
         run: |
           curl -sSL https://install.python-poetry.org | python3 -
-      - name: Configure Poetry
-        run: poetry config pypi-token.pypi ""
 
-      - name: Build package
+      - name: Update Poetry configuration
+        run: poetry config virtualenvs.create false
+
+      - name: Install dependencies
+        run: poetry install --sync --no-interaction
+
+      - name: Package project
         run: poetry build
 
-      - name: Publish to PyPI
-        run: poetry publish
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
