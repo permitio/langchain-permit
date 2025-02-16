@@ -1,8 +1,10 @@
 from importlib import metadata
 
 
-from langchain_permit.retrievers import LangchainPermitRetriever
-from langchain_permit.tools import LangchainPermitTool
+from langchain_permit.retrievers import PermitSelfQueryRetriever, PermitEnsembleRetriever
+from langchain_permit.tools import LangchainPermissionsCheckTool
+from langchain_permit.tools import LangchainJWTValidationTool
+from langchain.schema.cache import BaseCache
 
 try:
     # __version__ = metadata.version(__package__)
@@ -13,7 +15,10 @@ except metadata.PackageNotFoundError:
 del metadata  # optional, avoids polluting the results of dir(__package__)
 
 __all__ = [
-    "LangchainPermitRetriever",
-    "LangchainPermitTool",
+    "PermitSelfQueryRetriever",
+    "PermitEnsembleRetriever",
+    "LangchainPermissionsCheckTool",
+    "LangchainJWTValidationTool",
+    "BaseCache",
     "__version__",
 ]
