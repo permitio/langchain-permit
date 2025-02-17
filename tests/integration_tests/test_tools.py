@@ -33,8 +33,7 @@ class TestJWTValidationToolIntegration(ToolsIntegrationTests):
         """Example parameters for tool invocation."""
         return {
             # ensure to pass your jwt token here before running the test 
-            # "jwt_token": "eyJxxxx........"
-            "jwt_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6InRhb2ZpcS1pZCJ9.eyJlbWFpbCI6ImhhcnJ5dG9mZm9sb0BleGFtcGxlLmNvbSIsImZpcnN0X25hbWUiOiJIYXJyeSIsImlhdCI6MTczOTczOTMwNiwibGFzdF9uYW1lIjoiVG9mZm9sbyIsInN1YiI6InVzZXItMTIzIiwidGVuYW50IjoidGVjaGNvcnAifQ.mIQtPt8Vv70cbtsm2SxlP82adfR7WUjbQvndxY-3wlpgTbAE1rqldlhOlmrhiissEeLgHvXFvVTsfA57W5zZ9ROB2LtQpnIuJ0GXKC0eIlkKNB3e-2YjEkp6eppomUtYKtvjH6Q-D-SVHG4Sh1_e3PZB36IZ0rlFbqNUkMPrg6fD4eoYeENQJ2ksCb9ocZPgXcdp7qXUtIRLwx1L5wLR5fWngdZMh3GH7_Vqw7I8faBM2LCKs2sclO1o1Bzf_eFuCY1B1DSO6ZCqFO8IZSP8k6AVP3WbYcUggpFVWVbJO4wVA_n-bCgoSOaWSebv3YUbPgb8JzpQj7cl6-QB9rtOmg"
+            "jwt_token": "eyJxxxx........"
         }
 
 class TestPermitPermissionsToolIntegration(ToolsIntegrationTests):
