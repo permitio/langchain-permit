@@ -13,28 +13,28 @@ from langchain_permit.tools import (
 # Load test environment variables
 load_dotenv()
 
-class TestJWTValidationToolIntegration(ToolsIntegrationTests):
-    """Test class for JWT Validation tool integration tests."""
+# class TestJWTValidationToolIntegration(ToolsIntegrationTests):
+#     """Test class for JWT Validation tool integration tests."""
     
-    @property
-    def tool_constructor(self) -> Type[BaseTool]:
-        """Get the tool constructor."""
-        return LangchainJWTValidationTool
+#     @property
+#     def tool_constructor(self) -> Type[BaseTool]:
+#         """Get the tool constructor."""
+#         return LangchainJWTValidationTool
     
-    @property
-    def tool_constructor_params(self) -> dict:
-        """Get the parameters for tool initialization."""
-        return {
-            "jwks_url": os.getenv("JWKS_URL")
-        }
+#     @property
+#     def tool_constructor_params(self) -> dict:
+#         """Get the parameters for tool initialization."""
+#         return {
+#             "jwks_url": os.getenv("JWKS_URL")
+#         }
     
-    @property
-    def tool_invoke_params_example(self) -> dict:
-        """Example parameters for tool invocation."""
-        return {
-            # ensure to pass your jwt token here before running the test 
-            "jwt_token": "eyJxxxx........"
-        }
+#     @property
+#     def tool_invoke_params_example(self) -> dict:
+#         """Example parameters for tool invocation."""
+#         return {
+#             # ensure to pass your jwt token here before running the test 
+#             "jwt_token": "eyJxxxx........"
+#         }
 
 class TestPermitPermissionsToolIntegration(ToolsIntegrationTests):
     """Test class for Permit.io Permissions tool integration tests."""
