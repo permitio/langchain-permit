@@ -1,10 +1,9 @@
 # =============> LANGCHAIN IMPLEMENTATION <=============
 
 """LangchainPermit tools."""
-from dotenv import load_dotenv
 import os
 from typing import Optional, Dict, Type, Any, Union
-from permit import Permit, PermitError
+from permit import Permit
 from langchain_core.callbacks import CallbackManagerForToolRun
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field, ConfigDict, field_validator
@@ -12,7 +11,6 @@ import jwt
 import asyncio
 import requests
 import json
-from dataclasses import dataclass
 
 
 class JWKsConfig(BaseModel):
@@ -181,9 +179,20 @@ class LangchainPermissionsCheckTool(BaseTool):
     class Config:
         arbitrary_types_allowed = True
 
-    def __init__(self, name: str = "permission_check", permit=None, **kwargs):
-        super().__init__(name=name, **kwargs)
-        # 3. Assign it in the constructor
+    # def __init__(self, name: str = "permission_check", permit=None, **kwargs):
+    #     super().__init__(name=name, **kwargs)
+    #     # 3. Assign it in the constructor
+    #     self.permit = permit
+    
+    def __init__(
+        self,
+        name: str = "permission_check",
+        description: str = "Check user permissions with Permit.io",
+        permit=None,
+        **kwargs
+    ):
+        # Pass name and description to the BaseTool constructor
+        super().__init__(name=name, description=description, **kwargs)
         self.permit = permit
     
     def _validate_inputs(
@@ -232,7 +241,7 @@ class LangchainPermissionsCheckTool(BaseTool):
         context: Optional[Dict[str, Any]] = None,
         *,
         run_manager: Optional[CallbackManagerForToolRun] = None
-    ) -> bool:
+    ) -> Dict[str, bool]:
         """Run permission check using the Permit client."""
         # Validate inputs
         validated_user, validated_resource = self._validate_inputs(user, resource)
@@ -248,7 +257,9 @@ class LangchainPermissionsCheckTool(BaseTool):
             check_params["context"] = context
 
         # Run the check
-        return asyncio.run(self.permit.check(**check_params))
+        # return asyncio.run(self.permit.check(**check_params))
+        allowed = asyncio.run(self.permit.check(**check_params))
+        return {"allowed": allowed}
 
     async def _arun(
         self,

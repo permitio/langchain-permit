@@ -4,7 +4,7 @@ from importlib import metadata
 from langchain_permit.retrievers import PermitSelfQueryRetriever, PermitEnsembleRetriever
 from langchain_permit.tools import LangchainPermissionsCheckTool
 from langchain_permit.tools import LangchainJWTValidationTool
-from langchain.schema.cache import BaseCache
+
 
 try:
     # __version__ = metadata.version(__package__)
@@ -19,6 +19,5 @@ __all__ = [
     "PermitEnsembleRetriever",
     "LangchainPermissionsCheckTool",
     "LangchainJWTValidationTool",
-    "BaseCache",
     "__version__",
 ]

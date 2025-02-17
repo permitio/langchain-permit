@@ -35,6 +35,7 @@ langchain-openai = "^0.3.5"
 tiktoken = "^0.9.0"
 unstructured = "^0.16.20"
 libmagic = "^1.0"
+langchain-chroma = "^0.2.2"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "T201"]
