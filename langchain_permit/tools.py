@@ -284,6 +284,8 @@ class LangchainPermissionsCheckTool(BaseTool):
         if context:
             check_params["context"] = context
 
-        # Run the check
-        return await self.permit.check(**check_params)
+        allowed = await self.permit.check(**check_params)
+        return {"allowed": allowed}
+        # # Run the check
+        # return await self.permit.check(**check_params)
     

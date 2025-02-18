@@ -14,7 +14,7 @@ from langchain.chains.query_constructor.base import StructuredQueryOutputParser,
 from langchain.chains.query_constructor.schema import AttributeInfo
 
 class PermitSelfQueryRetriever(SelfQueryRetriever, BaseModel):
-    """Retriever that uses natural language to query permitted documents with Permit.io authorization."""
+    """Data protection retriever that uses fine-grained authorization to incorporate permissions filtering into natural language queries."""
     
     # Configuration fields
     api_key: str = Field(
@@ -181,7 +181,7 @@ class PermitSelfQueryRetriever(SelfQueryRetriever, BaseModel):
 
 class PermitEnsembleRetriever(EnsembleRetriever, BaseModel):
     """
-    Ensemble retriever with Permit.io permission filtering.
+    Data protection retriever that uses the ensemble capabilities to process permissions filtering after receiving results. Use Permit's `filter_objects` to filter the RAG resources with fine-grained authorization.
     """
 
     # Instance configuration

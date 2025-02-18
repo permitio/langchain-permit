@@ -6,8 +6,12 @@ from langchain_community.vectorstores import FAISS
 from langchain_permit.retrievers import PermitSelfQueryRetriever
 
 # Example: Assume we have a user who wants to "view" a certain resource type
-USER = {"key": "user_123"}  # or your actual user dict from Permit
+
+# The user ID we want to filter the results for (should be synced to Permit's PDP)
+USER = {"key": "user_123"}
+# The name of the resource in the policy we configured in Permit
 RESOURCE_TYPE = "my_resource"
+# The particular action we want to filter for (usually read, view, etc.)
 ACTION = "view"
 
 async def main():
@@ -37,11 +41,11 @@ async def main():
         enable_limit=False,
     )
     
-    # 4. Make a query
+    # 4. Make a query (the retriever will append the filter to it)
     query = "Tell me about cats"
     results = await retriever._aget_relevant_documents(query, run_manager=None)
     
-    # 5. Print out results
+    # 5. Print out the filtered results
     print(f"Query: {query}")
     for i, doc in enumerate(results, start=1):
         print(f"Result #{i} (doc id: {doc.metadata.get('id')}): {doc.page_content}")
