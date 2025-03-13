@@ -1,0 +1,10 @@
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "kid": "taofiq-id",
+      "n": "0x6BUv3JA2NbnEMaoWriuI1C3q7rmUMuJp9aPR4RqA25TvinLBVeeJJnMwCUPft4VVsZTebwcWSxyAn8ZnWND0UrWdU0TJUiZkdGq9r35Raluqm4hHFdyMzpqMfVt4Sq_B5kByePDE9r1VRiyGo6uHccLjMZgHlRQVkPBe05scv....",
+      "e": "AQAB"
+    }
+  ]
+}
