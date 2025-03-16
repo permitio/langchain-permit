@@ -57,19 +57,89 @@ For usage, you’ll want to confirm your PDP is running, or you have Permit.io s
 
 ### JWT Validation Tool
 
+The `LangchainJWTValidationTool` allows you to validate JSON Web Tokens (JWTs) using a JSON Web Key Set (JWKS) provided via a URL or direct JSON. It integrates with LangChain as a tool but also provides public methods (`validate` and `get_claims`) for standalone usage.
+
+#### Features
+
+- Validates JWTs with signature verification using a JWKS.
+- Extracts JWT claims without signature verification.
+- Supports both LangChain tool interface and direct method calls.
+- Allows session-based usage with a stored token or dynamic token passing.
+
+#### Installation
+
+Ensure you have the required dependencies:
+
+```bash
+pip install langchain-permit requests pyjwt
+```
+
+### Usage
+
+1. **Initialize the Tool**: Provide a JWKS source (either a URL or JSON). Optionally, provide a token for session-based use.
+2. **Validate a Token**: Use the `validate` method to check the token’s validity with signature verification.
+3. **Extract Claims**: Use the `get_claims` method to extract claims without verifying the signature.
+
+#### Example 1: Using a JWKS URL with a Stored Token
+
 ```python
 from langchain_permit.tools import LangchainJWTValidationTool
 
-jwt_validator = LangchainJWTValidationTool(
-    jwks_url="http://localhost:3458/.well-known/jwks.json" # this is just a sample url, you can add your own jwks url
+# Initialize with a JWKS URL and a token
+tool = LangchainJWTValidationTool(
+    jwks_url="http://localhost:3458/.well-known/jwks.json",
+    token="eyJhbGciOiJSUzI1NiIsImtpZCI6InRhb2ZpcS1pZCJ9.eyJzdWIiOiIxMjMifQ.SignatureHere"
 )
 
-# In an async context:
-# claims = await jwt_validator._arun(my_jwt_token)
-# print("Decoded claims:", claims)
+# Validate the stored token
+try:
+    validated_claims = tool.validate()
+    print("Validated claims:", validated_claims)
+except ValueError as e:
+    print("Validation error:", e)
+
+# Extract claims from the stored token
+try:
+    claims = tool.get_claims()
+    print("Extracted claims:", claims)
+except ValueError as e:
+    print("Claims extraction error:", e)
 ```
 
-Check out `examples/demo_jwt_validation.py` for a fully runnable script.
+#### Example 2: Using a JWKS JSON File with a Dynamic Token
+
+```python
+from langchain_permit.tools import LangchainJWTValidationTool
+import json
+
+# Load JWKS from a file
+with open("jwks.json", "r") as f:
+    jwks_data = json.load(f)
+
+# Initialize with JWKS JSON (no stored token)
+tool = LangchainJWTValidationTool(jwks_json=jwks_data)
+
+# Validate a token dynamically
+try:
+    validated_claims = tool.validate("eyJhbGciOiJSUzI1NiIsImtpZCI6InRhb2ZpcS1pZCJ9.eyJzdWIiOiIxMjMifQ.SignatureHere")
+    print("Validated claims:", validated_claims)
+except ValueError as e:
+    print("Validation error:", e)
+
+# Extract claims dynamically
+try:
+    claims = tool.get_claims("eyJhbGciOiJSUzI1NiIsImtpZCI6InRhb2ZpcS1pZCJ9.eyJzdWIiOiIxMjMifQ.SignatureHere")
+    print("Extracted claims:", claims)
+except ValueError as e:
+    print("Claims extraction error:", e)
+```
+
+### Notes
+
+- **JWKS Requirement**: You must provide either a `jwks_url` or `jwks_json` when initializing the tool. The JWKS must contain a key matching the token's `kid` for `validate` to work.
+- **Token Flexibility**: The `token` parameter is optional during initialization. If not provided, you must pass a token to `validate` or `get_claims`.
+- **Validation vs. Claims Extraction**: `validate` verifies the token's signature, while `get_claims` extracts claims without verification (use with trusted tokens only).
+- **Error Handling**: Always wrap calls in `try-except` blocks to handle `ValueError` exceptions (e.g., invalid token, unreachable JWKS URL).
 
 ### Permission Check Tool
 

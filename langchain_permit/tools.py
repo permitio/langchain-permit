@@ -11,20 +11,10 @@ import jwt
 import asyncio
 import requests
 import json
+from .validator import JWTValidator
 
-
-class JWKsConfig(BaseModel):
-    """Configuration for JWKs source."""
-    url: Optional[str] = None
-    json_keys: Optional[Dict] = None
-
-    @field_validator('url', 'json_keys')
-    def validate_jwks_config(cls, v, values):
-        # During testing, allow both to be None
-        return v
 
 class LangchainJWTValidationToolInput(BaseModel):
-    """Input schema for JWT validation."""
     jwt_token: str = Field(..., description="JWT token to validate")
 
     model_config = ConfigDict(
@@ -33,113 +23,53 @@ class LangchainJWTValidationToolInput(BaseModel):
         populate_by_name=True
     )
 
+
 class LangchainJWTValidationTool(BaseTool):
-    """
-    A tool that validates JWTs against JWKs provided either via URL or direct JSON.
-    """
     name: str = "jwt_validation"
     description: str = "Validate a JWT token using either a JWKs endpoint or direct JWKs"
     args_schema: Type[BaseModel] = LangchainJWTValidationToolInput
-
-    jwks_config: JWKsConfig
+    validator: Optional[JWTValidator] = Field(default=None, exclude=True)
 
     def __init__(
-        self, 
+        self,
         jwks_url: Optional[str] = None,
         jwks_json: Optional[Dict] = None,
+        token: Optional[str] = None,
         **kwargs
     ):
-        """
-        Initialize with either JWKs URL or direct JSON keys.
-        """
-        # If neither is provided, try environment variable
-        if not jwks_url and not jwks_json:
-            jwks_url = os.getenv("JWKS_URL")
-
-        # Create JWKs configuration with relaxed validation
-        jwks_config = JWKsConfig(url=jwks_url, json_keys=jwks_json)
-        
-        # Prepare kwargs for BaseTool initialization
-        kwargs['jwks_config'] = jwks_config
-        
+        if not (jwks_url or jwks_json):
+            raise ValueError(
+                "Either JWKs URL or JSON must be provided for signature validation.")
         super().__init__(**kwargs)
+        self.validator = JWTValidator(jwks_url, jwks_json, token)
 
     def _run(
-        self, 
-        jwt_token: str, 
-        *, 
+        self,
+        jwt_token: Optional[str] = None,
+        *,
         run_manager: Optional[CallbackManagerForToolRun] = None
     ) -> Dict[str, Any]:
-        """Synchronous JWT validation."""
-        return self.validate_jwt(jwt_token)
+        token_to_validate = jwt_token or self.validator.token
+        if not token_to_validate:
+            raise ValueError("No token provided for validation")
+        return self.validator.validate(token_to_validate)
 
     async def _arun(
-        self, 
-        jwt_token: str, 
-        *, 
+        self,
+        jwt_token: Optional[str] = None,
+        *,
         run_manager: Optional[CallbackManagerForToolRun] = None
     ) -> Dict[str, Any]:
-        """Asynchronous JWT validation."""
-        return self.validate_jwt(jwt_token)
+        token_to_validate = jwt_token or self.validator.token
+        if not token_to_validate:
+            raise ValueError("No token provided for validation")
+        return self.validator.validate(token_to_validate)
 
-    def _fetch_jwks(self) -> Dict:
-        """
-        Get JWKs either from URL or stored JSON.
-        Handles test scenarios with no JWKs source.
-        """
-        if self.jwks_config.url:
-            try:
-                response = requests.get(self.jwks_config.url)
-                response.raise_for_status()
-                return response.json()
-            except requests.RequestException as e:
-                raise ValueError(f"Failed to fetch JWKs from URL: {e}")
-        
-        if self.jwks_config.json_keys:
-            return self.jwks_config.json_keys
-        
-        # Fallback for testing: return a dummy JWKs
-        return {
-            "keys": [{
-                "kty": "RSA",
-                "kid": "test-key",
-                "n": "dummy-n",
-                "e": "AQAB"
-            }]
-        }
+    def validate(self, token: Optional[str] = None) -> Dict[str, Any]:
+        return self.validator.validate(token)
 
-    def validate_jwt(self, jwt_token: str) -> Dict[str, Any]:
-        """
-        Validate JWT using configured JWKs source.
-        Handles test scenarios with minimal configuration.
-        """
-        # For testing, allow minimal validation
-        try:
-            # Extract unverified header
-            unverified_header = jwt.get_unverified_header(jwt_token)
-            kid = unverified_header.get("kid")
-
-            # Fetch JWKs
-            jwks = self._fetch_jwks()
-
-            # Find matching key
-            public_key = None
-            for key_dict in jwks.get("keys", []):
-                if key_dict.get("kid") == kid:
-                    public_key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key_dict))
-                    break
-
-            # If no key found, attempt without signature verification
-            if not public_key:
-                return jwt.decode(jwt_token, options={"verify_signature": False})
-
-            # Validate token
-            return jwt.decode(jwt_token, public_key, algorithms=["RS256"])
-        
-        except Exception as e:
-            raise ValueError(f"JWT validation failed: {e}")
-
-
+    def get_claims(self, token: Optional[str] = None) -> Dict[str, Any]:
+        return self.validator.get_claims(token)
 
 
 class UserInput(BaseModel):
@@ -148,7 +78,8 @@ class UserInput(BaseModel):
     Maps to IUser interface from Permit.io
     """
     key: str = Field(..., description="Customer-side ID of the user")
-    firstName: Optional[str] = Field(None, description="First name of the user")
+    firstName: Optional[str] = Field(
+        None, description="First name of the user")
     lastName: Optional[str] = Field(None, description="Last name of the user")
     email: Optional[str] = Field(None, description="Email address of the user")
     attributes: Optional[Dict[str, Any]] = Field(
@@ -156,22 +87,26 @@ class UserInput(BaseModel):
         description="Custom attributes for ABAC"
     )
 
+
 class ResourceInput(BaseModel):
     """
     Represents a resource object for permit.check() validation.
     Maps to IResource interface from Permit.io
     """
     type: str = Field(..., description="Resource type/namespace")
-    key: Optional[str] = Field(None, description="Customer-side ID of the resource")
-    tenant: Optional[str] = Field(None, description="Tenant under which resource is defined")
+    key: Optional[str] = Field(
+        None, description="Customer-side ID of the resource")
+    tenant: Optional[str] = Field(
+        None, description="Tenant under which resource is defined")
     attributes: Optional[Dict[str, Any]] = Field(
         default=None,
         description="Custom attributes for ABAC"
     )
-    
+
+
 class LangchainPermissionsCheckTool(BaseTool):
     """Tool for checking permissions using Permit.io."""
-    
+
    # 1. Declare permit as a field
     permit: Optional[Permit] = Field(default=None)
 
@@ -183,7 +118,7 @@ class LangchainPermissionsCheckTool(BaseTool):
     #     super().__init__(name=name, **kwargs)
     #     # 3. Assign it in the constructor
     #     self.permit = permit
-    
+
     def __init__(
         self,
         name: str = "permission_check",
@@ -194,7 +129,7 @@ class LangchainPermissionsCheckTool(BaseTool):
         # Pass name and description to the BaseTool constructor
         super().__init__(name=name, description=description, **kwargs)
         self.permit = permit
-    
+
     def _validate_inputs(
         self,
         user: Union[str, Dict[str, Any]],
@@ -202,14 +137,14 @@ class LangchainPermissionsCheckTool(BaseTool):
     ) -> tuple[Dict[str, Any], Dict[str, Any]]:
         """
         Validate user and resource inputs before sending to permit.check()
-        
+
         Args:
             user: User identifier or object
             resource: Resource identifier or object
-            
+
         Returns:
             Tuple of validated (user_dict, resource_dict)
-            
+
         Raises:
             ValueError: If validation fails
         """
@@ -218,18 +153,22 @@ class LangchainPermissionsCheckTool(BaseTool):
             validated_user = UserInput(key=user).model_dump(exclude_none=True)
         else:
             try:
-                validated_user = UserInput(**user).model_dump(exclude_none=True)
+                validated_user = UserInput(
+                    **user).model_dump(exclude_none=True)
             except Exception as e:
                 raise ValueError(f"Invalid user object structure: {str(e)}")
 
         # Validate resource
         if isinstance(resource, str):
-            validated_resource = ResourceInput(type=resource).model_dump(exclude_none=True)
+            validated_resource = ResourceInput(
+                type=resource).model_dump(exclude_none=True)
         else:
             try:
-                validated_resource = ResourceInput(**resource).model_dump(exclude_none=True)
+                validated_resource = ResourceInput(
+                    **resource).model_dump(exclude_none=True)
             except Exception as e:
-                raise ValueError(f"Invalid resource object structure: {str(e)}")
+                raise ValueError(
+                    f"Invalid resource object structure: {str(e)}")
 
         return validated_user, validated_resource
 
@@ -244,7 +183,8 @@ class LangchainPermissionsCheckTool(BaseTool):
     ) -> Dict[str, bool]:
         """Run permission check using the Permit client."""
         # Validate inputs
-        validated_user, validated_resource = self._validate_inputs(user, resource)
+        validated_user, validated_resource = self._validate_inputs(
+            user, resource)
 
         # Prepare check parameters
         check_params = {
@@ -272,7 +212,8 @@ class LangchainPermissionsCheckTool(BaseTool):
     ) -> bool:
         """Asynchronous run method."""
         # Validate inputs
-        validated_user, validated_resource = self._validate_inputs(user, resource)
+        validated_user, validated_resource = self._validate_inputs(
+            user, resource)
 
         # Prepare check parameters
         check_params = {
@@ -288,4 +229,3 @@ class LangchainPermissionsCheckTool(BaseTool):
         return {"allowed": allowed}
         # # Run the check
         # return await self.permit.check(**check_params)
-    
