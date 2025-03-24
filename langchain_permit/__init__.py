@@ -1,9 +1,13 @@
 from importlib import metadata
 
 
-from langchain_permit.retrievers import PermitSelfQueryRetriever, PermitEnsembleRetriever
+from langchain_permit.retrievers import (
+    PermitSelfQueryRetriever,
+    PermitEnsembleRetriever,
+)
 from langchain_permit.tools import LangchainPermissionsCheckTool
 from langchain_permit.tools import LangchainJWTValidationTool
+
 # from langchain_permit.validator import JWTValidator
 
 try:
